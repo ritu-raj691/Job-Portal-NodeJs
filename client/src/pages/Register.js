@@ -1,5 +1,8 @@
 import React, { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import axios from "axios";
 import JobPortal from "../assets/images/JobPortal.jpeg";
+import { hideLoading, showLoading } from "../redux/features/alertSlice";
 
 const formInitialData = {
   name: "",
@@ -11,6 +14,10 @@ const formInitialData = {
 const Register = () => {
   const [formData, setFormData] = useState(formInitialData);
   const [touched, setTouched] = useState({});
+  const [registerMsg, setRegisterMsg] = useState("");
+  const [registerErrorMsg, setRegisterErrorMsg] = useState("");
+  const dispatch = useDispatch();
+  const { loading } = useSelector((state) => state.alerts);
 
   const onChange = (event) => {
     const id = event?.target?.id;
@@ -55,14 +62,42 @@ const Register = () => {
     );
   };
 
-  const onRegisterClick = (event) => {
-    event.stopPropagation();
+  const onRegisterClick = async (event) => {
     event.preventDefault();
-    const copiedFormData = { ...formData };
-    const trimmedData = Object.fromEntries(
-      Object.entries(copiedFormData).map(([key, value]) => [key, value?.trim()])
-    );
-    setFormData(trimmedData);
+    try {
+      dispatch(showLoading());
+      setRegisterMsg("");
+      setRegisterErrorMsg("");
+      const copiedFormData = { ...formData };
+      const trimmedData = Object.fromEntries(
+        Object.entries(copiedFormData).map(([key, value]) => [
+          key,
+          key === "password" ? value : value?.trim(),
+        ])
+      );
+      setFormData(trimmedData);
+      const { data } = await axios.post("/v1/auth/register", {
+        name: trimmedData.name,
+        email: trimmedData.email,
+        password: trimmedData.password,
+      });
+      if (data?.success) {
+        setRegisterMsg("Registered Successfully!");
+        setRegisterErrorMsg("");
+      } else {
+        setRegisterMsg("");
+        setRegisterErrorMsg("Registration Failed!");
+      }
+      dispatch(hideLoading());
+    } catch (error) {
+      dispatch(hideLoading());
+      setRegisterMsg("");
+      if (error?.response?.data?.err?.includes("User already exist.")) {
+        setRegisterErrorMsg("User already exist!");
+        return;
+      }
+      setRegisterErrorMsg("Registration Failed!");
+    }
   };
 
   return (
@@ -150,15 +185,22 @@ const Register = () => {
             {/* Register Button */}
             <button
               className="btn btn-primary w-100 py-2 rounded-pill"
-              disabled={isFormInvalid()}
+              disabled={isFormInvalid() || loading}
               onClick={onRegisterClick}
             >
-              Register
+              {loading ? "Loading..." : "Register"}
             </button>
           </form>
 
-          {/* Already Registered */}
-          <div className="text-center mt-3">
+          {registerMsg && (
+            <div className="text-center text-success mt-2">{registerMsg}</div>
+          )}
+          {registerErrorMsg && (
+            <div className="text-center text-danger mt-2">
+              {registerErrorMsg}
+            </div>
+          )}
+          <div className="text-center mt-2">
             <span className="text-muted">Already have an account? </span>
             <a href="/login" className="text-primary fw-bold">
               Login here
